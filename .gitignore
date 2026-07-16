@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/settings.json
+*.swp
+*.swo
+
+# Saves (lokal kjøringstid)
+aa-saves/
+
+# Scratch / temp
+*.tmp
+*.bak
+
+# Merged from .github/.gitignore
+/Axies and Allies Frontline Companion.code-workspace
+/EXPORT_TO_WEBSERVER*.md

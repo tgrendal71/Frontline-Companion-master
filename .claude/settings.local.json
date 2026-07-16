@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3)",
+      "Bash(node -c data/app.js)",
+      "Bash(node -c data/data.js)",
+      "Bash(node -c data/i18n.js)",
+      "Bash(python -c ' *)"
+    ]
+  }
+}

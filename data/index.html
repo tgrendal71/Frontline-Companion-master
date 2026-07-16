@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A&amp;A Global 1940 — Game Tracker</title>
+  <link rel="icon" href='data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="4" fill="%230d1117"/><text x="16" y="22" font-size="20" text-anchor="middle" fill="%23f59e0b" font-family="serif">⚔</text></svg>'>
+  <script>
+    // The browser fetches a <link rel="manifest"> as soon as it's parsed — under
+    // file:// that fetch is always blocked by CORS (same reasoning as the
+    // territories.csv skip in app.js's _loadTerritoriesCSV()), so document.write it
+    // in conditionally rather than always emitting a tag guaranteed to error out.
+    // PWA installability isn't available under file:// anyway, so nothing is lost.
+    if (location.protocol !== 'file:') {
+      document.write('<link rel="manifest" href="manifest.json">');
+    }
+  </script>
+  <meta name="theme-color" content="#14120d" id="metaThemeColor">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Frontline">
+  <script>
+    // Applied synchronously, before the stylesheet, so an explicit saved theme choice
+    // (opposite of the OS preference) doesn't flash the wrong theme for a frame on load.
+    // app.js's applyTheme() re-derives and confirms this once state is fully loaded.
+    try {
+      var _s = JSON.parse(localStorage.getItem('aa1940_tracker_v1'));
+      if (_s && (_s.theme === 'light' || _s.theme === 'dark')) {
+        document.documentElement.dataset.theme = _s.theme;
+      }
+    } catch (_) {}
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-wrap">
+
+    <!-- ══════════════ HEADER ══════════════ -->
+    <header>
+      <span class="logo">⚔️</span>
+
+      <button class="btn btn-ghost btn-sm hdr-nav-btn" id="btnPrevTurn" data-i18n-attr-title="header.prev_title" title="Forrige tur">◀</button>
+
+      <div class="hdr-turn-pill" id="turnPill">
+        <span class="htp-flag" id="turnFlag">🇩🇪</span>
+        <span class="htp-name" id="turnName">Germany</span>
+        <span class="htp-sep">·</span>
+        <span class="htp-round" id="roundBadge">Runde 1</span>
+      </div>
+
+      <button class="btn btn-primary btn-sm hdr-nav-btn hdr-next-btn" id="btnNextTurn" data-i18n="header.next_btn" data-i18n-attr-title="header.next_title" title="Neste tur">Neste ▶</button>
+
+      <button class="btn btn-ghost btn-sm lang-toggle" id="btnLang" onclick="toggleLang()" title="Bytt språk / Switch language">NO</button>
+
+      <details class="action-menu" id="actionMenu">
+        <summary class="btn btn-ghost btn-sm action-menu-trigger" data-i18n-attr-title="header.menu_title" title="Meny">⋮</summary>
+        <div class="action-menu-dropdown">
+          <button class="action-menu-item" id="btnTheme" onclick="toggleTheme()"><span id="btnThemeIcon">🌙</span> <span data-i18n="menu.theme">Bytt tema</span></button>
+          <button class="action-menu-item" id="btnNewGame" data-i18n="menu.new_game">🎮 Nytt spill</button>
+          <button class="action-menu-item action-menu-item--accent" id="btnServerSave" data-i18n="menu.save">☁️ Lagring</button>
+          <button class="action-menu-item" id="btnExport" data-i18n="menu.export">💾 Eksporter</button>
+          <label class="action-menu-item" style="cursor:pointer">
+            <span data-i18n="menu.import">📂 Importer</span>
+            <input type="file" id="importFile" accept="application/json" class="hidden">
+          </label>
+        </div>
+      </details>
+    </header>
+
+    <!-- ══════════════ TAB NAV (tablet/desktop) ══════════════ -->
+    <nav class="tab-bar" role="tablist">
+      <button class="tab-btn active" data-tab="nations"     role="tab">🌍 <span data-i18n="nav.nations">Nasjoner</span></button>
+      <button class="tab-btn"        data-tab="overview"    role="tab">📊 <span data-i18n="nav.overview">Oversikt</span></button>
+      <button class="tab-btn"        data-tab="territories" role="tab">🗺️ <span data-i18n="nav.territories">Territorier</span></button>
+      <button class="tab-btn"        data-tab="rules"       role="tab">📚 <span data-i18n="nav.rules">Regler</span></button>
+      <button class="tab-btn"        data-tab="history"     role="tab">📜 <span data-i18n="nav.history">Historikk</span></button>
+      <button class="tab-btn"        data-tab="battle"      role="tab">⚔️ <span data-i18n="nav.battle">Slag</span></button>
+      <button class="tab-btn"        data-tab="setup"       role="tab">🎯 <span data-i18n="nav.setup">Oppsett</span></button>
+    </nav>
+
+    <!-- ══════════════ BOTTOM NAV (mobile only) ══════════════ -->
+    <nav class="bottom-nav" role="tablist" aria-label="Navigasjon">
+      <button class="tab-btn active" data-tab="nations" role="tab">
+        <span class="bn-icon">🌍</span>
+        <span class="bn-label" data-i18n="nav.nations">Nasjoner</span>
+      </button>
+      <button class="tab-btn" data-tab="overview" role="tab">
+        <span class="bn-icon">📊</span>
+        <span class="bn-label" data-i18n="nav.overview">Oversikt</span>
+      </button>
+      <button class="tab-btn" data-tab="territories" role="tab">
+        <span class="bn-icon">🗺️</span>
+        <span class="bn-label" data-i18n="nav.territories">Territorier</span>
+      </button>
+      <button class="tab-btn" data-tab="battle" role="tab">
+        <span class="bn-icon">⚔️</span>
+        <span class="bn-label" data-i18n="nav.battle">Slag</span>
+      </button>
+      <button class="tab-btn" data-tab="history" role="tab">
+        <span class="bn-icon">📜</span>
+        <span class="bn-label" data-i18n="nav.history">Historikk</span>
+      </button>
+      <button class="tab-btn" data-tab="rules" role="tab">
+        <span class="bn-icon">📚</span>
+        <span class="bn-label" data-i18n="nav.rules">Regler</span>
+      </button>
+      <button class="tab-btn" data-tab="setup" role="tab">
+        <span class="bn-icon">🎯</span>
+        <span class="bn-label" data-i18n="nav.setup">Oppsett</span>
+      </button>
+    </nav>
+
+    <!-- ══════════════ MAIN ══════════════ -->
+    <div id="fixedSpacer" aria-hidden="true"></div>
+    <main>
+
+      <!-- ── OVERVIEW TAB (war status only — turn actions live on Nations) ── -->
+      <div id="tab-overview" class="tab-panel" role="tabpanel">
+
+        <!-- Turn strip (klikk for å navigere til nasjon) -->
+        <div class="turn-strip-wrap">
+          <div class="turn-strip-title" data-i18n="ov.turn_order">Tur-rekkefølge · klikk for å gå til nasjon</div>
+          <div class="turn-strip" id="turnStrip"></div>
+        </div>
+
+        <!-- Victory meter -->
+        <div class="victory-meter-wrap">
+          <div class="victory-meter-title" data-i18n="ov.vc_title">🏆 Seiersbyer — Akse trenger 13 for å vinne</div>
+          <div class="victory-bar-outer">
+            <div class="victory-bar-axis" id="victoryBarAxis" style="width:30%"></div>
+            <div class="victory-bar-allies" id="victoryBarAllies"></div>
+          </div>
+          <div class="victory-labels">
+            <span id="victoryLabelAxis">Akse: 0</span>
+            <span id="victoryLabelAllies">Allierte: 0</span>
+          </div>
+          <div class="win-indicator" id="winIndicator"></div>
+          <details class="vc-collapse">
+            <summary data-i18n="ov.vc_collapse">⭐ Seiersbyer</summary>
+            <div class="vc-medal-board" id="vcMedalBoard"></div>
+          </details>
+        </div>
+
+        <!-- Nation scoreboard -->
+        <div id="ovNationGrid"></div>
+
+      </div>
+
+      <!-- ── NATIONS TAB ───────────────────── -->
+      <div id="tab-nations" class="tab-panel active" role="tabpanel">
+        <!-- Sticky turn bar: active nation, phase progress, jump-to-next-phase,
+             finish turn. The nation cards below are the single source of phase UI. -->
+        <div class="turn-bar" id="phaseTrackerWrap">
+          <div class="turn-bar-nation" id="phaseNationName"></div>
+          <span class="phase-progress" id="turnBarProgress"></span>
+          <div class="turn-bar-actions">
+            <button class="btn btn-ghost btn-sm" id="btnNextPhase" onclick="scrollToNextPhase()"></button>
+            <button class="btn btn-sm btn-complete-turn" id="btnCompletePhases" onclick="nextTurn()"></button>
+          </div>
+        </div>
+        <div class="nations-grid" id="nationsGrid"></div>
+      </div>
+
+      <!-- ── TERRITORIES TAB ──────────────── -->
+      <div id="tab-territories" class="tab-panel" role="tabpanel">
+
+        <div class="territory-controls">
+          <input type="search" id="terSearch" placeholder="🔍 Søk territorier…" aria-label="Søk" data-i18n-attr-placeholder="ter.search_ph">
+          <select id="terFilterContinent" title="Filtrer etter kontinent">
+            <option value="" data-i18n="ter.all_continents">Alle kontinenter</option>
+            <option>North America</option>
+            <option>South America</option>
+            <option>Europe</option>
+            <option>Africa</option>
+            <option>Middle East</option>
+            <option>Asia</option>
+            <option>Pacific</option>
+          </select>
+          <div class="ter-nation-pair">
+            <select id="terFilterNation" title="Nasjon 1">
+              <option value="" data-i18n="ter.all_owners">Alle eiere</option>
+              <option value="germany">GER Germany</option>
+
+              <option value="italy">ITA Italy</option>
+              <option value="japan">JAP Japan</option>
+              <option value="soviet">SOV Soviet Union</option>
+              <option value="usa">USA United States</option>
+              <option value="uk_europe">UKE UK Europe</option>
+              <option value="uk_pacific">UKP UK Pacific</option>
+              <option value="anzac">ANZ ANZAC</option>
+              <option value="china">CHI China</option>
+              <option value="france">FRA France</option>
+              <option value="neutral" data-i18n="ter.neutral_opt">⚪ Nøytral</option>
+              <option value="dutch">DUT Dutch</option>
+            </select>
+            <span class="ter-vs-badge" data-i18n="ter.vs">vs</span>
+            <select id="terFilterNation2" title="Nasjon 2 (valgfri)">
+              <option value="" data-i18n="ter.nation2_ph">— 2. nasjon —</option>
+              <option value="germany">GER Germany</option>
+              <option value="italy">ITA Italy</option>
+              <option value="japan">JAP Japan</option>
+              <option value="soviet">SOV Soviet Union</option>
+              <option value="usa">USA United States</option>
+              <option value="uk_europe">UKE UK Europe</option>
+              <option value="uk_pacific">UKP UK Pacific</option>
+              <option value="anzac">ANZ ANZAC</option>
+              <option value="china">CHI China</option>
+              <option value="france">FRA France</option>
+              <option value="neutral">⚪ Nøytral</option>
+              <option value="dutch">DUT Dutch</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="territory-count-bar">
+          <span class="tcb-item"><span class="tcb-label" data-i18n="ter.total">Totalt:</span><span class="tcb-val" id="tcbTotal">—</span></span>
+          <span class="tcb-item" style="color:var(--red)"><span class="tcb-label" data-i18n="ter.axis">Akse:</span><span class="tcb-val" id="tcbAxis">—</span></span>
+          <span class="tcb-item" style="color:var(--blue)"><span class="tcb-label" data-i18n="ter.allies">Allierte:</span><span class="tcb-val" id="tcbAllies">—</span></span>
+          <span class="tcb-item"><span class="tcb-label" data-i18n="ter.neutral">Nøytral:</span><span class="tcb-val" id="tcbNeutral">—</span></span>
+        </div>
+
+        <div id="territoryGroups"></div>
+      </div>
+
+
+
+      <!-- ── HISTORY TAB ────────────────────── -->
+      <div id="tab-history" class="tab-panel" role="tabpanel">
+        <div class="history-title" data-i18n="hist.title">📜 Historikk</div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+
+      <!-- ── BATTLE BOARD TAB ──────────────── -->
+      <div id="tab-battle" class="tab-panel" role="tabpanel">
+
+        <div class="battle-header-bar">
+          <h2 class="battle-main-title" data-i18n="battle.title">⚔️ Slagbord</h2>
+          <button class="btn btn-ghost btn-sm" onclick="resetBattle()" data-i18n="battle.reset">🗑️ Nullstill</button>
+        </div>
+
+        <div class="battle-board">
+
+          <!-- ATTACKER -->
+          <div class="battle-side attacker-side">
+            <div class="battle-side-header attacker-header">
+              <span class="battle-side-icon">🗡️</span>
+              <span class="battle-side-label" data-i18n="battle.attacker">ANGRIPER</span>
+              <span class="battle-side-dice" id="atk-total-dice">0 terninger</span>
+            </div>
+            <div class="battle-nation-select-wrap">
+              <select class="battle-nation-select" id="battle-nation-atk" onchange="onBattleNationChange()">
+                <option value="" data-i18n="battle.select_nation">— Velg nasjon —</option>
+              </select>
+              <span class="battle-adv-art-badge hidden" id="adv-art-badge">⚗️ Adv. Artillery</span>
+            </div>
+            <div class="battle-units" id="atk-units"></div>
+          </div>
+
+          <!-- VS divider -->
+          <div class="battle-vs">
+            <div class="battle-vs-circle">VS</div>
+            <div class="battle-rolls-summary" id="battle-summary">
+              <div class="brs-row"><span class="brs-label" data-i18n="battle.exp_atk">Forventet treff (ang.)</span><span class="brs-val atk" id="atk-expected">0</span></div>
+              <div class="brs-row"><span class="brs-label" data-i18n="battle.exp_def">Forventet treff (for.)</span><span class="brs-val def" id="def-expected">0</span></div>
+            </div>
+            <div class="battle-pairing-info" id="battle-pairing-info"></div>
+            <!-- Manual hit inputs (replaces dice roll button) -->
+            <div class="battle-hit-inputs">
+              <div class="bhi-row">
+                <label class="bhi-label" for="battle-atk-hits" data-i18n="battle.atk_hits_label">Angriper treff:</label>
+                <input type="number" class="bhi-input" id="battle-atk-hits" min="0" value="0" title="Angriper treff" oninput="onBattleHitsChange()">
+              </div>
+              <div class="bhi-row">
+                <label class="bhi-label" for="battle-def-hits" data-i18n="battle.def_hits_label">Forsvarer treff:</label>
+                <input type="number" class="bhi-input" id="battle-def-hits" min="0" value="0" title="Forsvarer treff" oninput="onBattleHitsChange()">
+              </div>
+              <button type="button" class="btn btn-primary battle-apply-btn" id="btnBattleApply" onclick="applyBattleHits()" disabled data-i18n="battle.apply_hits">⚔️ Anvend treff</button>
+            </div>
+            <div id="battle-result"></div>
+          </div>
+
+          <!-- DEFENDER -->
+          <div class="battle-side defender-side">
+            <div class="battle-side-header defender-header">
+              <span class="battle-side-icon">🛡️</span>
+              <span class="battle-side-label" data-i18n="battle.defender">FORSVARER</span>
+              <span class="battle-side-dice" id="def-total-dice">0 terninger</span>
+            </div>
+            <div class="battle-nation-select-wrap">
+              <div id="def-nations-chips" class="def-nations-chips"></div>
+              <div class="def-add-row">
+                <select class="battle-nation-select" id="battle-nation-def-add" title="Add defender nation" onchange="addDefenderNation(this.value); this.value=''">
+                  <option value="" data-i18n="battle.add_defender">+ Legg til forsvarer</option>
+                </select>
+              </div>
+            </div>
+            <div class="battle-units" id="def-units"></div>
+          </div>
+
+        </div>
+
+        <!-- Battle Matrix / Casualty Zone -->
+        <div id="battle-matrix-section" class="battle-matrix-section"></div>
+
+      </div>
+
+      <!-- ── RULES TAB ─────────────────── -->
+      <div id="tab-rules" class="tab-panel" role="tabpanel" style="padding:0;height:calc(100vh - 110px);">
+        <iframe src="rules.html" title="Rules" style="width:100%;height:100%;border:none;" loading="lazy"></iframe>
+      </div>
+
+      <!-- ── SETUP TAB ─────────────────── -->
+      <div id="tab-setup" class="tab-panel" style="padding:0;height:calc(100vh - 110px);" role="tabpanel">
+        <iframe src="setup.html" title="Game play setup" style="width:100%;height:100%;border:none;" loading="lazy"></iframe>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ══════════════ MODALS ══════════════ -->
+
+  <!-- Server Save/Load Modal -->
+  <div class="modal-backdrop hidden" id="serverSaveModal" onclick="if(event.target===this)closeServerSaveModal()">
+    <div class="modal" style="min-width:340px;max-width:520px;width:95vw">
+      <div class="modal-header">
+        <span class="modal-title" data-i18n="modal.save.title">☁️ Server-lagring</span>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="closeServerSaveModal()" data-i18n="ui.close">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- Save row -->
+        <div class="ssave-save-row">
+          <input type="text" id="ssaveName" placeholder="Lagrenavn…" maxlength="64" class="ssave-name-input" aria-label="Lagrenavn" data-i18n-attr-placeholder="modal.save.placeholder">
+          <button type="button" class="btn btn-accent btn-sm" onclick="saveToServer()" data-i18n="modal.save.btn">💾 Lagre</button>
+        </div>
+        <!-- Save list -->
+        <div class="ssave-list-header">
+          <span data-i18n="modal.save.list_hdr">Lagrede spill</span>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="loadSavesList()" data-i18n="modal.save.refresh">🔄 Oppdater</button>
+        </div>
+        <div id="ssaveList" class="ssave-list">
+          <div class="ssave-empty" data-i18n="modal.save.loading">Laster…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Game Modal -->
+  <div class="modal-backdrop hidden" id="newGameModal" onclick="if(event.target===this)closeNewGameModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title" data-i18n="modal.new_game.title">🎮 Nytt spill</span>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="closeNewGameModal()" data-i18n="ui.close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-dim);font-size:.9rem">
+          <span data-i18n="modal.new_game.confirm">Er du sikker på at du vil starte et nytt spill?</span><br>
+          <strong style="color:var(--red)" data-i18n="modal.new_game.warning">All nåværende spillprogresjon vil slettes.</strong>
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost"  id="btnNewGameCancel"  data-i18n="modal.new_game.cancel">Avbryt</button>
+        <button type="button" class="btn btn-danger" id="btnNewGameConfirm" data-i18n="modal.new_game.start">🗑️ Start nytt spill</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Territory Modal (opened from the nation card's combat phase — reassign
+       territory ownership mid-turn without leaving the card) -->
+  <div class="modal-backdrop hidden" id="terrModal" onclick="if(event.target===this)closeTerrModal()">
+    <div class="modal terr-modal">
+      <div class="modal-header">
+        <span class="modal-title" id="terrModalTitle"></span>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="closeTerrModal()">✕</button>
+      </div>
+      <input type="search" id="terrModalSearch" class="terr-modal-search" oninput="renderTerrModalBody()">
+      <div class="terr-modal-natbar" id="terrModalNatBar"></div>
+      <div class="terr-modal-body" id="terrModalBody"></div>
+      <div class="terr-modal-footer">
+        <button class="btn btn-ghost btn-sm" id="terrModalFullBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Owner Picker Modal -->
+  <div class="modal-backdrop hidden" id="ownerPickerModal" onclick="if(event.target===this)closeOwnerPicker()">
+    <div class="modal owner-picker-modal">
+      <div class="modal-header">
+        <span class="modal-title" id="ownerPickerTitle" data-i18n="modal.owner.title">Endre eier</span>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="closeOwnerPicker()" data-i18n="ui.close">✕</button>
+      </div>
+      <div class="owner-picker-grid" id="ownerPickerGrid"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ TOASTS ══════════════ -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ══════════════ SCRIPTS ══════════════ -->
+  <script src="i18n.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
