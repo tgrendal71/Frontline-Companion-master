@@ -23,6 +23,7 @@ aa-saves/
 
 # Claude 
 *.claude
+.claude/
 
 # Merged from .github/.gitignore
 /Axies and Allies Frontline Companion.code-workspace
